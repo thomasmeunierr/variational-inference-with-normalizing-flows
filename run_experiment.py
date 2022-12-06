@@ -3,13 +3,15 @@ import argparse
 import torch
 from torch.autograd import Variable
 from torch import optim
-from mag.experiment import Experiment
+#from maggot import Experiment
+
+
 
 from visualization import plot_density, scatter_points
 from utils import random_normal_samples
 from flow import NormalizingFlow
 from losses import FreeEnergyBound
-from densities import p_z
+from densities import p_z,p_zz,p_zzz
 
 
 parser = argparse.ArgumentParser(
@@ -29,58 +31,60 @@ parser.add_argument(
     help="How many to points to generate for one plot."
 )
 
+
+
 args = parser.parse_args()
 
 torch.manual_seed(42)
 
 
-with Experiment({
-    "batch_size": 40,
-    "iterations": 10000,
-    "initial_lr": 0.01,
-    "lr_decay": 0.999,
-    "flow_length": 16,
-    "name": "planar"
-}) as experiment:
 
-    config = experiment.config
-    experiment.register_directory("samples")
-    experiment.register_directory("distributions")
+batch_size =  40
+iterations = 10000
+initial_lr = 0.01
+lr_decay = 0.999
+flow_length = 16
+name = "planar"
 
-    flow = NormalizingFlow(dim=2, flow_length=config.flow_length)
-    bound = FreeEnergyBound(density=p_z)
-    optimizer = optim.RMSprop(flow.parameters(), lr=config.initial_lr)
-    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, config.lr_decay)
 
-    plot_density(p_z, directory=experiment.distributions)
+# """ config = experiment.config
+# experiment.register_directory("samples")
+# experiment.register_directory("distributions") """
 
-    def should_log(iteration):
-        return iteration % args.log_interval == 0
+flow = NormalizingFlow(dim=2, flow_length=flow_length)
+bound = FreeEnergyBound(density=p_zz)
+optimizer = optim.RMSprop(flow.parameters(), lr=initial_lr)
+scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
 
-    def should_plot(iteration):
-        return iteration % args.plot_interval == 0
+plot_density(p_zz, directory='results')
 
-    for iteration in range(1, config.iterations + 1):
+def should_log(iteration):
+    return iteration % args.log_interval == 0
 
-        scheduler.step()
+def should_plot(iteration):
+    return iteration % args.plot_interval == 0
 
-        samples = Variable(random_normal_samples(config.batch_size))
-        zk, log_jacobians = flow(samples)
+for iteration in range(1, iterations + 1):
 
-        optimizer.zero_grad()
-        loss = bound(zk, log_jacobians)
-        loss.backward()
-        optimizer.step()
+    scheduler.step()
 
-        if should_log(iteration):
-            print("Loss on iteration {}: {}".format(iteration , loss.data[0]))
+    samples = Variable(random_normal_samples(batch_size))
+    zk, log_jacobians = flow(samples)
 
-        if should_plot(iteration):
-            samples = Variable(random_normal_samples(args.plot_points))
-            zk, det_grads = flow(samples)
-            scatter_points(
-                zk.data.numpy(),
-                directory=experiment.samples,
-                iteration=iteration,
-                flow_length=config.flow_length
-            )
+    optimizer.zero_grad()
+    loss = bound(zk, log_jacobians)
+    loss.backward()
+    optimizer.step()
+
+    if should_log(iteration):
+        print("Loss on iteration {}: {}".format(iteration , loss.item()))
+
+    if should_plot(iteration):
+        samples = Variable(random_normal_samples(args.plot_points))
+        zk, det_grads = flow(samples)
+        scatter_points(
+            zk.data.numpy(),
+            directory='results_samples',
+            iteration=iteration,
+            flow_length=flow_length
+        )
