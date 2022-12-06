@@ -6,4 +6,4 @@ def safe_log(z):
 
 
 def random_normal_samples(n, dim=2):
-    return torch.zeros(n, dim).normal_(mean=0, std=1)
+    return torch.zeros((n, dim)).normal_(mean=0, std=1)
